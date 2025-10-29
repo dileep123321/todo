@@ -14,7 +14,7 @@ env:
 
 jobs:
   # --------------------------------------------------
-  # 1️⃣  BUILD & PUSH BACKEND IMAGE
+  # 1️⃣ BUILD & PUSH BACKEND IMAGE
   # --------------------------------------------------
   build_backend:
     name: Build & Push Backend
@@ -32,13 +32,14 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
+          export_default_credentials: true
 
       - name: Build and Push Backend Image
         run: |
           gcloud builds submit backend --tag $BACKEND_IMAGE:latest
 
   # --------------------------------------------------
-  # 2️⃣  BUILD & PUSH FRONTEND IMAGE
+  # 2️⃣ BUILD & PUSH FRONTEND IMAGE
   # --------------------------------------------------
   build_frontend:
     name: Build & Push Frontend
@@ -57,13 +58,14 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
+          export_default_credentials: true
 
       - name: Build and Push Frontend Image
         run: |
           gcloud builds submit frontend --tag $FRONTEND_IMAGE:latest
 
   # --------------------------------------------------
-  # 3️⃣  DEPLOY TO GKE
+  # 3️⃣ DEPLOY TO GKE (with secure plugin install)
   # --------------------------------------------------
   deploy:
     name: Deploy to GKE
@@ -71,7 +73,7 @@ jobs:
     needs: [build_backend, build_frontend]
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
@@ -79,34 +81,44 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set up gcloud
+      - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
+          export_default_credentials: true
 
-      # 👇 FIX: Install the GKE Auth Plugin (required for kubectl)
-      - name: Install GKE Auth Plugin
+      # ✅ Fixed & Secure Auth Plugin Installation (working version)
+      - name: Install GKE Auth Plugin (Secure Way)
         run: |
+          echo "🔧 Installing GKE auth plugin safely..."
+          sudo mkdir -p /usr/share/keyrings
+          curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+            gpg --dearmor | sudo tee /usr/share/keyrings/cloud.google.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | \
+            sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
           sudo apt-get update -y
           sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
       - name: Get GKE Credentials
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
       # --------------------------------------------------
-      # Apply Kubernetes manifests
+      # Deploy Everything to GKE
       # --------------------------------------------------
       - name: Deploy MongoDB
         run: |
+          echo "📦 Deploying MongoDB..."
           kubectl apply -f mongodb/ --validate=false
 
       - name: Deploy Backend and Frontend
         run: |
+          echo "🚀 Deploying Backend & Frontend..."
           kubectl apply -f backend/k8s/ --validate=false
           kubectl apply -f frontend/k8s/ --validate=false
 
-      - name: Update Images in Deployments
+      - name: Update Images
         run: |
           kubectl set image deployment/backend-deployment backend=$BACKEND_IMAGE:latest --record || true
           kubectl set image deployment/frontend-deployment frontend=$FRONTEND_IMAGE:latest --record || true
