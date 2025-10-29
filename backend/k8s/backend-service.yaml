@@ -2,10 +2,14 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend-service
+  labels:
+    app: backend
 spec:
+  type: LoadBalancer   # 👈 changed from ClusterIP
   selector:
     app: backend
-  type: ClusterIP
   ports:
-  - port: 8080
-    targetPort: 8080
+    - port: 8080        # Service port (external)
+      targetPort: 8080  # Container port
+      protocol: TCP
+      name: http
