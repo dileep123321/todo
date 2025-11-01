@@ -1,66 +1,41 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from motor.motor_asyncio import AsyncIOMotorClient
+from fastapi.middleware.cors import CORSMiddleware
+from pymongo import MongoClient
 from bson import ObjectId
-import os
 
-app = FastAPI(title="Todo App Backend")
+app = FastAPI()
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo-service:27017/')
-client = AsyncIOMotorClient(MONGO_URI)
+# Allow frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# MongoDB connection (service name inside cluster)
+client = MongoClient("mongodb://mongo-service:27017/")
 db = client.todo_db
-todos = db.todos
+collection = db.todos
 
-class Todo(BaseModel):
-    title: str
-    description: str = ''
-    completed: bool = False
+@app.get("/todo")
+def get_todos():
+    todos = list(collection.find())
+    for todo in todos:
+        todo["_id"] = str(todo["_id"])
+    return todos
 
-def out(doc):
-    doc['id'] = str(doc['_id'])
-    doc.pop('_id', None)
-    return doc
+@app.post("/todo")
+def add_todo(todo: dict):
+    result = collection.insert_one(todo)
+    todo["_id"] = str(result.inserted_id)
+    return todo
 
-@app.post('/todos/', status_code=201)
-async def create_todo(todo: Todo):
-    res = await todos.insert_one(todo.dict())
-    doc = await todos.find_one({'_id': res.inserted_id})
-    return out(doc)
+@app.delete("/todo/{todo_id}")
+def delete_todo(todo_id: str):
+    result = collection.delete_one({"_id": ObjectId(todo_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return {"message": "Todo deleted"}
 
-@app.get('/todos/')
-async def list_todos():
-    items = []
-    cursor = todos.find()
-    async for doc in cursor:
-        items.append(out(doc))
-    return items
-
-@app.get('/todos/{todo_id}')
-async def get_todo(todo_id: str):
-    doc = await todos.find_one({'_id': ObjectId(todo_id)})
-    if not doc:
-        raise HTTPException(status_code=404, detail='Not found')
-    return out(doc)
-
-@app.put('/todos/{todo_id}')
-async def update_todo(todo_id: str, todo: Todo):
-    res = await todos.update_one({'_id': ObjectId(todo_id)}, {'$set': todo.dict()})
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail='Not found')
-    doc = await todos.find_one({'_id': ObjectId(todo_id)})
-    return out(doc)
-
-@app.patch('/todos/{todo_id}')
-async def patch_todo(todo_id: str, payload: dict):
-    res = await todos.update_one({'_id': ObjectId(todo_id)}, {'$set': payload})
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail='Not found')
-    doc = await todos.find_one({'_id': ObjectId(todo_id)})
-    return out(doc)
-
-@app.delete('/todos/{todo_id}')
-async def delete_todo(todo_id: str):
-    res = await todos.delete_one({'_id': ObjectId(todo_id)})
-    if res.deleted_count == 0:
-        raise HTTPException(status_code=404, detail='Not found')
-    return {'message': 'deleted'}

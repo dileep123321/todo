@@ -2,10 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend-deployment
-  labels:
-    app: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: frontend
@@ -19,3 +17,4 @@ spec:
         image: gcr.io/modern-saga-472703-k3/todo-frontend:latest
         ports:
         - containerPort: 80
+
