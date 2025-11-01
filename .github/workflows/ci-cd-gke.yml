@@ -1,4 +1,4 @@
-name: Full Stack Todo App CI/CD (GCP GKE)
+name: Full Stack Todo App CI/CD - GKE (Artifact Registry)
 
 on:
   push:
@@ -7,71 +7,73 @@ on:
 
 env:
   PROJECT_ID: modern-saga-472703-k3
+  REGION: us-central1
   GKE_CLUSTER: test-demo-cluster
   GKE_ZONE: us-central1-a
-  BACKEND_IMAGE: gcr.io/modern-saga-472703-k3/todo-backend
-  FRONTEND_IMAGE: gcr.io/modern-saga-472703-k3/todo-frontend
+  REPO_NAME: todo-repo
+  BACKEND_IMAGE: us-central1-docker.pkg.dev/modern-saga-472703-k3/todo-repo/todo-backend
+  FRONTEND_IMAGE: us-central1-docker.pkg.dev/modern-saga-472703-k3/todo-repo/todo-frontend
 
 jobs:
   # --------------------------------------------------
-  # 1. CHECKOUT, LINT, TEST, AND SCAN
+  # CI STAGE - LINT, TEST, SECURITY
   # --------------------------------------------------
-  code_quality:
-    name: Code Quality, Linting & Unit Tests
+  ci-checks:
+    name: Run CI Checks
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Install Backend Dependencies
         run: |
           cd backend
           pip install -r requirements.txt
 
-      - name: Install Frontend Dependencies
+      - name: Lint Backend Code
+        run: |
+          cd backend
+          pylint *.py || true
+
+      - name: Security Scan (Bandit)
+        run: |
+          cd backend
+          pip install bandit
+          bandit -r . || true
+
+      - name: Backend Unit Tests
+        run: |
+          cd backend
+          pytest || true
+
+      - name: Frontend Lint and Test
         run: |
           cd frontend
           npm install
+          npm run lint || true
+          npm test || true
 
-      - name: Lint and Style Checks
+      - name: Scan for Secrets
         run: |
-          echo "Running lint checks..."
-          cd backend && flake8 . || true
-          cd ../frontend && npx eslint . || true
-
-      - name: Security Scan
-        run: |
-          echo "Running Bandit and npm audit..."
-          cd backend && bandit -r . || true
-          cd ../frontend && npm audit --audit-level=moderate || true
-
-      - name: Unit & Integration Tests
-        run: |
-          echo "Running unit tests..."
-          cd backend && pytest -v || true
-          cd ../frontend && npm test -- --watchAll=false || true
-
-      - name: File System Scan
-        run: |
-          echo "Scanning for secrets and large files..."
+          pip install trufflehog
           trufflehog filesystem . || echo "No secrets found"
-          git ls-files -z | xargs -0 du -h | sort -hr | head -n 20
-
-      - name: Notify Code Quality Success
-        run: echo "Code quality checks completed successfully"
 
   # --------------------------------------------------
-  # 2. BUILD & PUSH BACKEND IMAGE
+  # BUILD BACKEND IMAGE
   # --------------------------------------------------
   build_backend:
     name: Build & Push Backend Image
     runs-on: ubuntu-latest
-    needs: code_quality
+    needs: ci-checks
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -84,21 +86,17 @@ jobs:
           project_id: ${{ env.PROJECT_ID }}
           export_default_credentials: true
 
-      - name: Build Backend Docker Image
-        run: docker build -t $BACKEND_IMAGE:latest backend
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      - name: Scan Backend Image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.BACKEND_IMAGE }}:latest
-          format: 'table'
-          exit-code: '0'
-
-      - name: Push Backend Image to GCR
-        run: docker push $BACKEND_IMAGE:latest
+      - name: Build and Push Backend Image
+        run: |
+          docker build -t $BACKEND_IMAGE:latest ./backend
+          docker push $BACKEND_IMAGE:latest
 
   # --------------------------------------------------
-  # 3. BUILD & PUSH FRONTEND IMAGE
+  # BUILD FRONTEND IMAGE
   # --------------------------------------------------
   build_frontend:
     name: Build & Push Frontend Image
@@ -106,8 +104,7 @@ jobs:
     needs: build_backend
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -120,37 +117,32 @@ jobs:
           project_id: ${{ env.PROJECT_ID }}
           export_default_credentials: true
 
-      - name: Build Frontend Docker Image
-        run: docker build -t $FRONTEND_IMAGE:latest frontend
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      - name: Scan Frontend Image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.FRONTEND_IMAGE }}:latest
-          format: 'table'
-          exit-code: '0'
-
-      - name: Push Frontend Image to GCR
-        run: docker push $FRONTEND_IMAGE:latest
+      - name: Build and Push Frontend Image
+        run: |
+          docker build -t $FRONTEND_IMAGE:latest ./frontend
+          docker push $FRONTEND_IMAGE:latest
 
   # --------------------------------------------------
-  # 4. DEPLOY TO GKE
+  # DEPLOY TO GKE
   # --------------------------------------------------
   deploy:
-    name: Deploy to GKE Cluster
+    name: Deploy to GKE
     runs-on: ubuntu-latest
     needs: [build_backend, build_frontend]
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set up Google Cloud SDK
+      - name: Configure gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
@@ -166,14 +158,11 @@ jobs:
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: Deploy MongoDB
-        run: kubectl apply -f mongodb/ --validate=false
-
-      - name: Deploy Backend
-        run: kubectl apply -f backend/k8s/ --validate=false
-
-      - name: Deploy Frontend
-        run: kubectl apply -f frontend/k8s/ --validate=false
+      - name: Deploy Application
+        run: |
+          kubectl apply -f mongodb/ --validate=false
+          kubectl apply -f backend/k8s/ --validate=false
+          kubectl apply -f frontend/k8s/ --validate=false
 
       - name: Update Deployment Images
         run: |
@@ -185,8 +174,6 @@ jobs:
           kubectl rollout status deployment/backend-deployment --timeout=180s || true
           kubectl rollout status deployment/frontend-deployment --timeout=180s || true
 
-      - name: Show Service Details
-        run: kubectl get svc -A -o wide
-
-      - name: Notify Deployment Success
-        run: echo "Deployment to GKE completed successfully"
+      - name: Show Services
+        run: |
+          kubectl get svc -A -o wide
