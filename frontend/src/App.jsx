@@ -5,7 +5,7 @@ function App() {
   const [todos, setTodos] = useState([]);
   const [todo, setTodo] = useState("");
 
-  const backendURL = "http://<BACKEND-EXTERNAL-IP>:8080";
+  const backendURL = "http://35.225.48.45:8080";
 
   useEffect(() => {
     axios.get(`${backendURL}/todo`).then((res) => setTodos(res.data));
