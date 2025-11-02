@@ -27,7 +27,8 @@ function App() {
   return (
     <div className="app">
       <h1>Todo App</h1>
-      <inputvalue={todo}
+      <input
+        value={todo}
         onChange={(e) => setTodo(e.target.value)}
         placeholder="Add Todo"
       />
@@ -46,4 +47,3 @@ function App() {
 }
 
 export default App;
-
