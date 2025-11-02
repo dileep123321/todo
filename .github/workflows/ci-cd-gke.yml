@@ -91,9 +91,11 @@ jobs:
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and Push Backend Image
-        run: |
-          docker build -t $BACKEND_IMAGE:latest ./backend
-          docker push $BACKEND_IMAGE:latest
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ env.BACKEND_IMAGE }}:latest
 
   # --------------------------------------------------
   # BUILD FRONTEND IMAGE
@@ -122,9 +124,11 @@ jobs:
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and Push Frontend Image
-        run: |
-          docker build -t $FRONTEND_IMAGE:latest ./frontend
-          docker push $FRONTEND_IMAGE:latest
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ env.FRONTEND_IMAGE }}:latest
 
   # --------------------------------------------------
   # DEPLOY TO GKE
@@ -150,8 +154,7 @@ jobs:
 
       - name: Install GKE Auth Plugin
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
+          gcloud components install gke-gcloud-auth-plugin --quiet
           echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
       - name: Get GKE Credentials
