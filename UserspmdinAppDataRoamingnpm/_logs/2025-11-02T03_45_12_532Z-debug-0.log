@@ -1,0 +1,36 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.1
+2 info using node@v22.19.0
+3 silly config load:file:C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\npmrc
+4 silly config load:file:C:\Practice\todo\.npmrc
+5 silly config load:file:C:\Users\pmdin\.npmrc
+6 silly config load:file:C:\Users\pmdin\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm run build
+8 verbose argv "run" "build"
+9 verbose logfile logs-max:10 dir:C:\Practice\todo\UserspmdinAppDataRoamingnpm\_logs\2025-11-02T03_45_12_532Z-
+10 verbose logfile C:\Practice\todo\UserspmdinAppDataRoamingnpm\_logs\2025-11-02T03_45_12_532Z-debug-0.log
+11 silly logfile done cleaning log files
+12 verbose stack Error: Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Practice\todo\package.json'
+12 verbose stack     at async open (node:internal/fs/promises:641:25)
+12 verbose stack     at async readFile (node:internal/fs/promises:1245:14)
+12 verbose stack     at async read (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\package-json\lib\read-package.js:9:18)
+12 verbose stack     at async PackageJson.load (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\package-json\lib\index.js:131:31)
+12 verbose stack     at async PackageJson.normalize (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\node_modules\@npmcli\package-json\lib\index.js:117:5)
+12 verbose stack     at async #run (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\lib\commands\run.js:90:13)
+12 verbose stack     at async RunScript.exec (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\lib\commands\run.js:44:7)
+12 verbose stack     at async Npm.exec (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\lib\npm.js:208:9)
+12 verbose stack     at async module.exports (C:\Users\pmdin\AppData\Roaming\npm\node_modules\npm\lib\cli\entry.js:67:5)
+13 error code ENOENT
+14 error syscall open
+15 error path C:\Practice\todo\package.json
+16 error errno -4058
+17 error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Practice\todo\package.json'
+18 error enoent This is related to npm not being able to find a file.
+18 error enoent
+19 verbose cwd C:\Practice\todo
+20 verbose os Windows_NT 10.0.26200
+21 verbose node v22.19.0
+22 verbose npm  v11.6.1
+23 verbose exit -4058
+24 verbose code -4058
+25 error A complete log of this run can be found in: C:\Practice\todo\UserspmdinAppDataRoamingnpm\_logs\2025-11-02T03_45_12_532Z-debug-0.log
